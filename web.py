@@ -1,6 +1,10 @@
 import datetime
+from email.MIMEMultipart import MIMEMultipart
+from email.MIMEText import MIMEText
+import pandas as pd
 import private
 import requests
+import smtplib
 import time
 import uuid
 
@@ -91,3 +95,29 @@ def get_eastmoney(conn, run_id, list_of_urls):
             conn.commit()
         else:
             print 'We good on this: ' + row['url']
+
+def send_html_email(email_body, recipient, subject):
+    """This function sends an HTML email from my personal email"""
+    fromaddress = private.EMAIL_FROM_ADDRESS
+
+    message = MIMEMultipart("alternative", None, [MIMEText(email_body,'html','utf-8')])
+    message['From'] = fromaddress
+    message['Subject'] = subject
+
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.starttls()
+    server.login(fromaddress, private.EMAIL_PASSWORD)
+    text = message.as_string()
+    server.sendmail(fromaddress, recipient, text)
+
+    server.quit()
+
+def get_results(conn):
+    '''Get only the most recent set of news stories'''
+    pd.set_option('max_colwidth', 160)
+
+    cur = conn.cursor()
+    cur.execute(private.QUERY_RESULTS)
+    df = pd.DataFrame(cur.fetchall(), columns=['Run Time', 'Count'])
+
+    return df.to_html()
