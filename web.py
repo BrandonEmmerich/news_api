@@ -1,7 +1,16 @@
 import datetime
 import private
+import requests
 import time
 import uuid
+
+def get_urls(conn):
+    '''Query database to get a list of existing news URLs'''
+    cur = conn.cursor()
+    cur.execute(private.QUERY_GET_URLS)
+    list_of_urls = [tuple_[0] for tuple_ in cur.fetchall()]
+
+    return list_of_urls
 
 def get_newsApi_china(conn, run_id, newsapi, list_of_urls):
     '''Get China business news and write to DB'''
@@ -58,14 +67,27 @@ def get_webhose_china(conn, run_id, webhoseio, list_of_urls):
         else:
             print 'We good on this: ' + row['url']
 
-def get_urls(conn):
-    '''Query database to get a list of existing news URLs'''
+def get_eastmoney(conn, run_id, list_of_urls):
+    '''Get news stories from the eastmoney API'''
     cur = conn.cursor()
-    cur.execute(private.QUERY_GET_URLS)
-    list_of_urls = [tuple_[0] for tuple_ in cur.fetchall()]
+    url = 'http://newsapi.eastmoney.com/kuaixun/v2/api/yw?limit=100'
+    res = requests.get(url)
+    data = res.json()['news']
 
-    return list_of_urls
+    for d in data:
+        row = {
+            'run_id': run_id,
+            'uuid' : str(uuid.uuid4()),
+            'service': 'eastmoney',
+            'publish_date' : datetime.datetime.strptime(d['showtime'], '%Y-%m-%d %H:%M:%S'),
+            'source': d['Art_Media_Name'],
+            'url' : d['url_w'],
+            'title' : d['title'],
+            'description' : d['digest'],
+        }
 
-# Next steps
-#     5. Github
-#     6. Analyze.
+        if row['url'] not in list_of_urls:
+            cur.execute(private.QUERY_INSERT, row)
+            conn.commit()
+        else:
+            print 'We good on this: ' + row['url']
